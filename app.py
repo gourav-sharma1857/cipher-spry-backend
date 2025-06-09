@@ -1,5 +1,3 @@
-# python_backend/app.py
-
 from flask import Flask, jsonify
 from flask_cors import CORS
 import requests
@@ -7,9 +5,9 @@ import random
 from dotenv import load_dotenv
 import os
 
-from patterns import ALL_PATTERNS 
+from patterns import ALL_PATTERNS # Assuming patterns.py is in the same directory
 
-load_dotenv() 
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -19,8 +17,8 @@ CORS(app, resources={r"/*": {"origins": "https://gourav-sharma1857.github.io"}})
 # --- New Global Variable for preventing immediate repetition ---
 last_pattern_func = None
 
-# --- External Word API Configuration ---
-WORD_API_URL = "https://random-word-api.herokuapp.com/word"
+# --- External Word API Configuration (Updated) ---
+WORD_API_URL = "https://api.datamuse.com/words" # New API URL
 
 @app.route("/get_patterned_word", methods=["GET"])
 def get_patterned_word():
@@ -32,21 +30,26 @@ def get_patterned_word():
 
     try:
         # 1. Fetch a word from the external API, specifying length=5
-        response = requests.get(WORD_API_URL, params={'length': 5})
+        # Using Datamuse API: 'ml' for "means like" (general English words), 'sp' for "spelled like" (wildcard pattern)
+        # We'll use 'sp=*?????' to get words with 5 letters.
+        # Alternatively, 'max=1' and 's=5' might work for length, but 'sp' is more direct for exact length.
+        params = {
+            'sp': '?????', # Wildcard for exactly 5 letters
+            'max': 100    # Fetch up to 100 words to pick a random one from
+        }
+        response = requests.get(WORD_API_URL, params=params)
         response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
         word_data = response.json()
 
-        # Check if the API returned a valid word
-        if not word_data or not isinstance(word_data, list) or not word_data[0]:
+        # Filter for words that are strictly 5 letters long and choose one
+        five_letter_words = [d['word'].upper() for d in word_data if len(d['word']) == 5 and d['word'].isalpha()]
+
+        if not five_letter_words:
             original_word = random.choice(["APPLE", "HOUSE", "TRAIN", "PLANT", "EARTH"])
-            print(f"API returned no 5-letter word, using fallback: {original_word}")
+            print(f"API returned no suitable 5-letter word, using fallback: {original_word}")
         else:
-            original_word = str(word_data[0]).upper() # Ensure uppercase for consistency
-
-        if len(original_word) != 5:
-            original_word = random.choice(["APPLE", "HOUSE", "TRAIN", "PLANT", "EARTH"])
-            print(f"Fetched word was not 5 characters, using fallback: {original_word}")
-
+            original_word = random.choice(five_letter_words)
+            print(f"Fetched word from DataMuse: {original_word}")
 
         # 2. Apply a random pattern
         # Get available patterns, excluding the last one if it exists
